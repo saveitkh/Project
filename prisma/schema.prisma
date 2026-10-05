@@ -1,0 +1,320 @@
+// ============================================================================
+// TikTok LIVE Pre-Test & Account Protection Service — data model
+// ============================================================================
+// This schema backs a defensive compliance tool: pre-LIVE script/product
+// review, practice sessions, readiness scoring, incident/evidence capture,
+// and appeal preparation. It intentionally contains NO fields or logic for
+// bypassing platform enforcement, spoofing identity/location, or automating
+// engagement. See README-PROTECTION-SERVICE.md for scope.
+//
+// Runs on SQLite for local/dev by default; swap `provider`/`url` to
+// "postgresql" + a real DATABASE_URL for production. No code elsewhere
+// depends on the SQLite-specific dialect.
+// ============================================================================
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  ADMIN
+  CUSTOMER
+}
+
+enum ProtectionPlan {
+  BASIC
+  PRO
+  ADVANCED
+}
+
+enum RiskLevel {
+  LOW
+  MEDIUM
+  HIGH
+  REVIEW_REQUIRED
+}
+
+enum DataSource {
+  REAL
+  CUSTOMER_PROVIDED
+  CALCULATED
+  SIMULATED
+  OFFICIAL_API
+  UNAVAILABLE
+}
+
+enum IncidentType {
+  WARNING
+  RESTRICTION
+  LIVE_INTERRUPTION
+  ACCOUNT_SUSPENSION
+  OTHER
+}
+
+enum IncidentStatus {
+  OPEN
+  EVIDENCE_COLLECTED
+  APPEAL_PREPARED
+  APPEAL_SUBMITTED
+  RESOLVED
+  CLOSED
+}
+
+enum AppealStatus {
+  DRAFT
+  READY_FOR_CUSTOMER_REVIEW
+  SUBMITTED_BY_CUSTOMER
+  OUTCOME_UNKNOWN
+  OUTCOME_REPORTED
+}
+
+enum EvidenceType {
+  SCREENSHOT
+  LOG
+  DOCUMENT
+  OFFICIAL_NOTIFICATION
+  OTHER
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  role         Role     @default(CUSTOMER)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  customer  Customer?
+  auditLogs AuditLog[]
+}
+
+model Customer {
+  id             String         @id @default(cuid())
+  userId         String         @unique
+  user           User           @relation(fields: [userId], references: [id])
+  companyName    String?
+  market         String?
+  protectionPlan ProtectionPlan @default(BASIC)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  tiktokAccounts    TikTokAccount[]
+  preLiveAudits     PreLiveAudit[]
+  productReviews    ProductReview[]
+  liveSessions      LiveSession[]
+  incidents         Incident[]
+  protectionReports ProtectionReport[]
+}
+
+// Authorization record for a customer's own TikTok account. This app never
+// creates, impersonates, or automates a TikTok account — it only stores the
+// handle/identifier the customer provides and (optionally) the status of an
+// *official* API authorization the customer has granted.
+model TikTokAccount {
+  id                  String   @id @default(cuid())
+  customerId          String
+  customer            Customer @relation(fields: [customerId], references: [id])
+  usernameHandle      String
+  officialApiLinked   Boolean  @default(false)
+  officialAuthStatus  String   @default("NOT_CONFIGURED")
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  preLiveAudits PreLiveAudit[]
+  liveSessions  LiveSession[]
+  incidents     Incident[]
+
+  @@index([customerId])
+}
+
+model PreLiveAudit {
+  id                  String    @id @default(cuid())
+  customerId          String
+  customer            Customer  @relation(fields: [customerId], references: [id])
+  tiktokAccountId      String?
+  tiktokAccount        TikTokAccount? @relation(fields: [tiktokAccountId], references: [id])
+  liveTitle           String
+  product             String
+  productDescription  String
+  promotionalClaims   String
+  plannedScript       String
+  talkingPoints       String
+  targetAudience      String
+  market              String
+  plannedDurationMins Int
+  status              String    @default("DRAFT")
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  practiceSessions  PracticeSession[]
+  protectionReports ProtectionReport[]
+
+  @@index([customerId])
+}
+
+model PracticeSession {
+  id             String   @id @default(cuid())
+  preLiveAuditId String
+  preLiveAudit   PreLiveAudit @relation(fields: [preLiveAuditId], references: [id])
+  label          String   @default("Practice Session")
+  createdAt      DateTime @default(now())
+
+  scriptVersions ScriptVersion[]
+
+  @@index([preLiveAuditId])
+}
+
+model ScriptVersion {
+  id                String   @id @default(cuid())
+  practiceSessionId String
+  practiceSession   PracticeSession @relation(fields: [practiceSessionId], references: [id])
+  versionNumber     Int
+  scriptText        String
+  overallRiskLevel  RiskLevel @default(LOW)
+  createdAt         DateTime @default(now())
+
+  riskFindings RiskFinding[]
+
+  @@index([practiceSessionId])
+}
+
+model RiskFinding {
+  id              String    @id @default(cuid())
+  scriptVersionId String?
+  scriptVersion   ScriptVersion? @relation(fields: [scriptVersionId], references: [id])
+  productReviewId String?
+  productReview   ProductReview? @relation(fields: [productReviewId], references: [id])
+  statement       String
+  riskLevel       RiskLevel
+  category        String
+  reasoning       String
+  saferAlternative String
+  evidenceSource  String
+  confidence      Float
+  createdAt       DateTime  @default(now())
+
+  @@index([scriptVersionId])
+  @@index([productReviewId])
+}
+
+model ProductReview {
+  id                   String    @id @default(cuid())
+  customerId           String
+  customer             Customer  @relation(fields: [customerId], references: [id])
+  productName          String
+  category             String
+  manufacturer         String
+  description          String
+  claims               String
+  supportingDocuments  String    @default("[]") // JSON-encoded list of {name, path}
+  productImages        String    @default("[]") // JSON-encoded list of {name, path}
+  riskLevel            RiskLevel @default(LOW)
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  riskFindings RiskFinding[]
+
+  @@index([customerId])
+}
+
+// Represents one LIVE session's *monitoring* record. Populated only from
+// (a) customer-entered info, (b) an official API when one is configured, or
+// left UNAVAILABLE. Never populated from scraping, unofficial APIs, or
+// fabricated data.
+model LiveSession {
+  id              String     @id @default(cuid())
+  customerId      String
+  customer        Customer   @relation(fields: [customerId], references: [id])
+  tiktokAccountId String?
+  tiktokAccount   TikTokAccount? @relation(fields: [tiktokAccountId], references: [id])
+  status          String     @default("UNAVAILABLE")
+  dataSource      DataSource @default(UNAVAILABLE)
+  startedAt       DateTime?
+  endedAt         DateTime?
+  metricsJson     String?    // JSON-encoded metrics, only ever from an official API
+  apiErrorMessage String?
+  createdAt       DateTime   @default(now())
+
+  @@index([customerId])
+}
+
+model Incident {
+  id                     String         @id @default(cuid())
+  customerId             String
+  customer               Customer       @relation(fields: [customerId], references: [id])
+  tiktokAccountId        String?
+  tiktokAccount          TikTokAccount? @relation(fields: [tiktokAccountId], references: [id])
+  type                   IncidentType
+  description            String
+  officialNotificationText String?
+  status                 IncidentStatus @default(OPEN)
+  createdAt              DateTime       @default(now())
+  updatedAt              DateTime       @updatedAt
+
+  evidence          Evidence[]
+  appealCase        AppealCase?
+  protectionReports ProtectionReport[]
+
+  @@index([customerId])
+}
+
+model Evidence {
+  id          String       @id @default(cuid())
+  incidentId  String
+  incident    Incident     @relation(fields: [incidentId], references: [id])
+  type        EvidenceType
+  filePath    String?
+  description String
+  createdAt   DateTime     @default(now())
+
+  @@index([incidentId])
+}
+
+model ProtectionReport {
+  id                 String    @id @default(cuid())
+  customerId         String
+  customer           Customer  @relation(fields: [customerId], references: [id])
+  preLiveAuditId     String?
+  preLiveAudit       PreLiveAudit? @relation(fields: [preLiveAuditId], references: [id])
+  incidentId         String?
+  incident           Incident? @relation(fields: [incidentId], references: [id])
+  overallRiskScore   Int
+  riskLevel          RiskLevel
+  topRisksJson       String    // JSON-encoded string[]
+  recommendedActionsJson String // JSON-encoded string[]
+  remainingUnknownsJson String // JSON-encoded string[]
+  pdfPath            String?
+  createdAt          DateTime  @default(now())
+
+  @@index([customerId])
+}
+
+model AppealCase {
+  id            String       @id @default(cuid())
+  incidentId    String       @unique
+  incident      Incident     @relation(fields: [incidentId], references: [id])
+  status        AppealStatus @default(DRAFT)
+  preparedText  String
+  submittedAt   DateTime?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id])
+  action     String
+  entityType String
+  entityId   String
+  metadata   String   @default("{}") // JSON-encoded
+  createdAt  DateTime @default(now())
+
+  @@index([userId])
+  @@index([entityType, entityId])
+}

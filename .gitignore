@@ -4,3 +4,10 @@ out/
 *.log
 .DS_Store
 next-env.d.ts
+
+# Protection service
+.env
+prisma/dev.db
+prisma/dev.db-journal
+uploads/*
+!uploads/.gitkeep

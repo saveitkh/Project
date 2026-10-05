@@ -1,0 +1,34 @@
+import DisclaimerBanner from "@/components/DisclaimerBanner";
+import Nav from "@/components/Nav";
+
+// Metadata can't be exported from a nested client-adjacent layout the same
+// way as a root layout in some Next versions; title is static per-page
+// instead where needed. Keeping this layout focused on UI only.
+
+export default function SimulatorLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <div>
+      <DisclaimerBanner />
+      <header style={{ padding: "16px 16px 0 16px" }}>
+        <h1 style={{ fontSize: "20px", margin: 0 }}>Regional Moderation Research Lab</h1>
+        <p style={{ fontSize: "13px", color: "#666", margin: "4px 0 0 0" }}>
+          Educational / defensive research simulator — synthetic regions and policies only.
+        </p>
+      </header>
+      <Nav />
+      <main style={{ padding: "20px 16px", maxWidth: "1100px", margin: "0 auto" }}>{children}</main>
+      <footer
+        style={{
+          padding: "16px",
+          textAlign: "center",
+          fontSize: "12px",
+          color: "#888",
+          borderTop: "1px solid #eee",
+          marginTop: "40px",
+        }}
+      >
+        Simulation only — results do not represent TikTok&apos;s actual moderation rules.
+      </footer>
+    </div>
+  );
+}

@@ -1,0 +1,21 @@
+import { NextRequest, NextResponse } from "next/server";
+import { requireAuth } from "@/lib/protection/auth";
+import { finalizePracticeSession, getPracticeSession } from "@/lib/protection/practiceService";
+import { handleApiError } from "@/lib/protection/apiError";
+
+export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const user = await requireAuth();
+    const { id } = await params;
+    const session = await getPracticeSession(id);
+    if (!session) return NextResponse.json({ error: "Not found." }, { status: 404 });
+    if (user.role !== "ADMIN" && session.preLiveAudit.customerId !== user.customer?.id) {
+      return NextResponse.json({ error: "Not found." }, { status: 404 });
+    }
+
+    const result = await finalizePracticeSession(id);
+    return NextResponse.json(result, { status: 201 });
+  } catch (err) {
+    return handleApiError(err);
+  }
+}
