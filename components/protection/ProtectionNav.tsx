@@ -8,6 +8,7 @@ const LINKS = [
   { href: "/pre-live/practice", label: "Speaking Practice" },
   { href: "/pre-live/product", label: "Product Test" },
   { href: "/pre-live/practice-live", label: "Practice LIVE" },
+  { href: "/live-monitor", label: "Live Monitor" },
   { href: "/protection/incidents", label: "Incidents" },
   { href: "/protection/plans", label: "Plans" },
   { href: "/admin", label: "Admin" },

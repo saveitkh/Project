@@ -4,6 +4,14 @@ import { RiskFindingResult, RiskLevel } from "./riskEngine";
 export const REPORT_LIMITATION_NOTICE =
   "Successful completion of this test means the submitted material passed our risk assessment criteria. It does not guarantee that TikTok will not take future enforcement action.";
 
+export interface LiveTimelineEntry {
+  timestamp: string;
+  type: string;
+  summary: string;
+  source: string;
+  confidence: string;
+}
+
 export interface ProtectionReportData {
   customerName: string;
   username: string;
@@ -17,6 +25,8 @@ export interface ProtectionReportData {
   evidence: string[];
   recommendations: string[];
   limitations: string[];
+  /** Present only for a report generated from a LIVE session. */
+  liveEventTimeline?: LiveTimelineEntry[];
 }
 
 export function escapeHtml(value: string): string {
@@ -100,6 +110,28 @@ export function renderReportHtml(data: ProtectionReportData): string {
   <p>Overall Risk Score: ${data.finalRiskAssessment.overallRiskScore} — Risk Level: ${escapeHtml(
     data.finalRiskAssessment.riskLevel
   )}</p>
+
+  ${
+    data.liveEventTimeline
+      ? `<h2>LIVE Evidence Timeline</h2>
+  <table border="1" cellpadding="6" cellspacing="0" style="width:100%;font-size:13px;">
+    <thead><tr><th>Time</th><th>Type</th><th>Summary</th><th>Source</th><th>Confidence</th></tr></thead>
+    <tbody>
+      ${data.liveEventTimeline
+        .map(
+          (t) => `<tr>
+        <td>${escapeHtml(new Date(t.timestamp).toLocaleString())}</td>
+        <td>${escapeHtml(t.type)}</td>
+        <td>${escapeHtml(t.summary)}</td>
+        <td>${escapeHtml(t.source)}</td>
+        <td>${escapeHtml(t.confidence)}</td>
+      </tr>`
+        )
+        .join("\n")}
+    </tbody>
+  </table>`
+      : ""
+  }
 
   <h2>Evidence</h2>
   <ul>${data.evidence.map((e) => `<li>${escapeHtml(e)}</li>`).join("") || "<li>None on file</li>"}</ul>
@@ -210,6 +242,18 @@ export async function generateReportPdf(data: ProtectionReportData): Promise<Uin
   writeSection("Test Date", [data.testDate]);
   writeSection("Market", [data.market]);
   writeSection("Product", [data.product]);
+
+  if (data.liveEventTimeline) {
+    writeSection(
+      "LIVE Evidence Timeline",
+      data.liveEventTimeline.length === 0
+        ? ["No events recorded."]
+        : data.liveEventTimeline.map(
+            (t) =>
+              `${new Date(t.timestamp).toLocaleString()} — ${t.type}: ${t.summary} (source: ${t.source}, confidence: ${t.confidence})`
+          )
+    );
+  }
 
   writeSection(
     "Practice Test Results",

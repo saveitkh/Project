@@ -45,7 +45,25 @@ enum DataSource {
   CALCULATED
   SIMULATED
   OFFICIAL_API
+  AUTHORIZED_CONNECTOR
   UNAVAILABLE
+}
+
+enum LiveEventType {
+  LIVE_STARTED
+  LIVE_ENDED
+  COMMENT
+  LIKE
+  GIFT
+  FOLLOW
+  VIEWER_UPDATE
+  SYSTEM_EVENT
+}
+
+enum OrderSuggestionStatus {
+  PENDING_REVIEW
+  CONFIRMED
+  DISMISSED
 }
 
 enum IncidentType {
@@ -116,14 +134,14 @@ model Customer {
 // handle/identifier the customer provides and (optionally) the status of an
 // *official* API authorization the customer has granted.
 model TikTokAccount {
-  id                  String   @id @default(cuid())
-  customerId          String
-  customer            Customer @relation(fields: [customerId], references: [id])
-  usernameHandle      String
-  officialApiLinked   Boolean  @default(false)
-  officialAuthStatus  String   @default("NOT_CONFIGURED")
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  id                 String   @id @default(cuid())
+  customerId         String
+  customer           Customer @relation(fields: [customerId], references: [id])
+  usernameHandle     String
+  officialApiLinked  Boolean  @default(false)
+  officialAuthStatus String   @default("NOT_CONFIGURED")
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
   preLiveAudits PreLiveAudit[]
   liveSessions  LiveSession[]
@@ -133,11 +151,11 @@ model TikTokAccount {
 }
 
 model PreLiveAudit {
-  id                  String    @id @default(cuid())
+  id                  String         @id @default(cuid())
   customerId          String
-  customer            Customer  @relation(fields: [customerId], references: [id])
-  tiktokAccountId      String?
-  tiktokAccount        TikTokAccount? @relation(fields: [tiktokAccountId], references: [id])
+  customer            Customer       @relation(fields: [customerId], references: [id])
+  tiktokAccountId     String?
+  tiktokAccount       TikTokAccount? @relation(fields: [tiktokAccountId], references: [id])
   liveTitle           String
   product             String
   productDescription  String
@@ -147,22 +165,23 @@ model PreLiveAudit {
   targetAudience      String
   market              String
   plannedDurationMins Int
-  status              String    @default("DRAFT")
-  createdAt           DateTime  @default(now())
-  updatedAt           DateTime  @updatedAt
+  status              String         @default("DRAFT")
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
 
   practiceSessions  PracticeSession[]
   protectionReports ProtectionReport[]
+  liveSessions      LiveSession[]
 
   @@index([customerId])
 }
 
 model PracticeSession {
-  id             String   @id @default(cuid())
+  id             String       @id @default(cuid())
   preLiveAuditId String
   preLiveAudit   PreLiveAudit @relation(fields: [preLiveAuditId], references: [id])
-  label          String   @default("Practice Session")
-  createdAt      DateTime @default(now())
+  label          String       @default("Practice Session")
+  createdAt      DateTime     @default(now())
 
   scriptVersions ScriptVersion[]
 
@@ -170,13 +189,13 @@ model PracticeSession {
 }
 
 model ScriptVersion {
-  id                String   @id @default(cuid())
+  id                String          @id @default(cuid())
   practiceSessionId String
   practiceSession   PracticeSession @relation(fields: [practiceSessionId], references: [id])
   versionNumber     Int
   scriptText        String
-  overallRiskLevel  RiskLevel @default(LOW)
-  createdAt         DateTime @default(now())
+  overallRiskLevel  RiskLevel       @default(LOW)
+  createdAt         DateTime        @default(now())
 
   riskFindings RiskFinding[]
 
@@ -184,38 +203,41 @@ model ScriptVersion {
 }
 
 model RiskFinding {
-  id              String    @id @default(cuid())
-  scriptVersionId String?
-  scriptVersion   ScriptVersion? @relation(fields: [scriptVersionId], references: [id])
-  productReviewId String?
-  productReview   ProductReview? @relation(fields: [productReviewId], references: [id])
-  statement       String
-  riskLevel       RiskLevel
-  category        String
-  reasoning       String
+  id               String         @id @default(cuid())
+  scriptVersionId  String?
+  scriptVersion    ScriptVersion? @relation(fields: [scriptVersionId], references: [id])
+  productReviewId  String?
+  productReview    ProductReview? @relation(fields: [productReviewId], references: [id])
+  liveEventId      String?
+  liveEvent        LiveEvent?     @relation(fields: [liveEventId], references: [id])
+  statement        String
+  riskLevel        RiskLevel
+  category         String
+  reasoning        String
   saferAlternative String
-  evidenceSource  String
-  confidence      Float
-  createdAt       DateTime  @default(now())
+  evidenceSource   String
+  confidence       Float
+  createdAt        DateTime       @default(now())
 
   @@index([scriptVersionId])
   @@index([productReviewId])
+  @@index([liveEventId])
 }
 
 model ProductReview {
-  id                   String    @id @default(cuid())
-  customerId           String
-  customer             Customer  @relation(fields: [customerId], references: [id])
-  productName          String
-  category             String
-  manufacturer         String
-  description          String
-  claims               String
-  supportingDocuments  String    @default("[]") // JSON-encoded list of {name, path}
-  productImages        String    @default("[]") // JSON-encoded list of {name, path}
-  riskLevel            RiskLevel @default(LOW)
-  createdAt            DateTime  @default(now())
-  updatedAt            DateTime  @updatedAt
+  id                  String    @id @default(cuid())
+  customerId          String
+  customer            Customer  @relation(fields: [customerId], references: [id])
+  productName         String
+  category            String
+  manufacturer        String
+  description         String
+  claims              String
+  supportingDocuments String    @default("[]") // JSON-encoded list of {name, path}
+  productImages       String    @default("[]") // JSON-encoded list of {name, path}
+  riskLevel           RiskLevel @default(LOW)
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 
   riskFindings RiskFinding[]
 
@@ -227,34 +249,100 @@ model ProductReview {
 // left UNAVAILABLE. Never populated from scraping, unofficial APIs, or
 // fabricated data.
 model LiveSession {
-  id              String     @id @default(cuid())
+  id              String         @id @default(cuid())
   customerId      String
-  customer        Customer   @relation(fields: [customerId], references: [id])
+  customer        Customer       @relation(fields: [customerId], references: [id])
   tiktokAccountId String?
   tiktokAccount   TikTokAccount? @relation(fields: [tiktokAccountId], references: [id])
-  status          String     @default("UNAVAILABLE")
-  dataSource      DataSource @default(UNAVAILABLE)
+  preLiveAuditId  String?
+  preLiveAudit    PreLiveAudit?  @relation(fields: [preLiveAuditId], references: [id])
+  status          String         @default("UNAVAILABLE")
+  dataSource      DataSource     @default(UNAVAILABLE)
+  // Which adapter is/was backing this session: "SIMULATED", "OFFICIAL_API",
+  // or "UNAVAILABLE". Never silently left ambiguous.
+  adapterMode     String         @default("UNAVAILABLE")
   startedAt       DateTime?
   endedAt         DateTime?
-  metricsJson     String?    // JSON-encoded metrics, only ever from an official API
+  metricsJson     String? // JSON-encoded metrics, only ever from an official API
   apiErrorMessage String?
-  createdAt       DateTime   @default(now())
+  createdAt       DateTime       @default(now())
+
+  events            LiveEvent[]
+  orderSuggestions  OrderSuggestion[]
+  protectionReports ProtectionReport[]
 
   @@index([customerId])
 }
 
+/**
+ * One normalized LIVE event (comment, like, gift, follow, viewer update,
+ * system event, start/end). `source` names which adapter produced it
+ * ("SIMULATED_ADAPTER", "OFFICIAL_API_ADAPTER", "MANUAL_ENTRY"); `confidence`
+ * is the honesty label that must never be fabricated — SIMULATED events are
+ * always stored as SIMULATED, never REAL.
+ */
+model LiveEvent {
+  id            String        @id @default(cuid())
+  liveSessionId String
+  liveSession   LiveSession   @relation(fields: [liveSessionId], references: [id])
+  type          LiveEventType
+  username      String?
+  text          String?
+  payloadJson   String // full normalized event, JSON-encoded
+  source        String // e.g. "SIMULATED_ADAPTER", "OFFICIAL_API_ADAPTER", "MANUAL_ENTRY"
+  confidence    String // "REAL" | "SIMULATED" | "UNAVAILABLE"
+  occurredAt    DateTime
+  createdAt     DateTime      @default(now())
+
+  // Pin suggestion is ALWAYS a suggestion for the human host to act on in
+  // TikTok's own app — this system never calls any API to pin a comment.
+  suggestedPin Boolean @default(false)
+  pinReason    String?
+
+  riskFindings     RiskFinding[]
+  orderSuggestions OrderSuggestion[]
+
+  @@index([liveSessionId])
+  @@index([type])
+}
+
+/**
+ * A detected possible order from a LIVE comment, surfaced for the seller
+ * to confirm themselves. This NEVER creates a real order on TikTok Shop or
+ * anywhere else — it is a draft for human review only, unless a future
+ * official TikTok Shop API integration is explicitly configured (not
+ * implemented in this codebase).
+ */
+model OrderSuggestion {
+  id                  String                @id @default(cuid())
+  liveSessionId       String
+  liveSession         LiveSession           @relation(fields: [liveSessionId], references: [id])
+  liveEventId         String?
+  liveEvent           LiveEvent?            @relation(fields: [liveEventId], references: [id])
+  username            String
+  rawText             String
+  detectedProductCode String?
+  detectedQuantity    Int?
+  status              OrderSuggestionStatus @default(PENDING_REVIEW)
+  createdAt           DateTime              @default(now())
+  confirmedAt         DateTime?
+
+  @@index([liveSessionId])
+  @@index([status])
+}
+
 model Incident {
-  id                     String         @id @default(cuid())
-  customerId             String
-  customer               Customer       @relation(fields: [customerId], references: [id])
-  tiktokAccountId        String?
-  tiktokAccount          TikTokAccount? @relation(fields: [tiktokAccountId], references: [id])
-  type                   IncidentType
-  description            String
+  id                       String         @id @default(cuid())
+  customerId               String
+  customer                 Customer       @relation(fields: [customerId], references: [id])
+  tiktokAccountId          String?
+  tiktokAccount            TikTokAccount? @relation(fields: [tiktokAccountId], references: [id])
+  type                     IncidentType
+  description              String
   officialNotificationText String?
-  status                 IncidentStatus @default(OPEN)
-  createdAt              DateTime       @default(now())
-  updatedAt              DateTime       @updatedAt
+  status                   IncidentStatus @default(OPEN)
+  createdAt                DateTime       @default(now())
+  updatedAt                DateTime       @updatedAt
 
   evidence          Evidence[]
   appealCase        AppealCase?
@@ -276,33 +364,35 @@ model Evidence {
 }
 
 model ProtectionReport {
-  id                 String    @id @default(cuid())
-  customerId         String
-  customer           Customer  @relation(fields: [customerId], references: [id])
-  preLiveAuditId     String?
-  preLiveAudit       PreLiveAudit? @relation(fields: [preLiveAuditId], references: [id])
-  incidentId         String?
-  incident           Incident? @relation(fields: [incidentId], references: [id])
-  overallRiskScore   Int
-  riskLevel          RiskLevel
-  topRisksJson       String    // JSON-encoded string[]
+  id                     String        @id @default(cuid())
+  customerId             String
+  customer               Customer      @relation(fields: [customerId], references: [id])
+  preLiveAuditId         String?
+  preLiveAudit           PreLiveAudit? @relation(fields: [preLiveAuditId], references: [id])
+  incidentId             String?
+  incident               Incident?     @relation(fields: [incidentId], references: [id])
+  liveSessionId          String?
+  liveSession            LiveSession?  @relation(fields: [liveSessionId], references: [id])
+  overallRiskScore       Int
+  riskLevel              RiskLevel
+  topRisksJson           String // JSON-encoded string[]
   recommendedActionsJson String // JSON-encoded string[]
-  remainingUnknownsJson String // JSON-encoded string[]
-  pdfPath            String?
-  createdAt          DateTime  @default(now())
+  remainingUnknownsJson  String // JSON-encoded string[]
+  pdfPath                String?
+  createdAt              DateTime      @default(now())
 
   @@index([customerId])
 }
 
 model AppealCase {
-  id            String       @id @default(cuid())
-  incidentId    String       @unique
-  incident      Incident     @relation(fields: [incidentId], references: [id])
-  status        AppealStatus @default(DRAFT)
-  preparedText  String
-  submittedAt   DateTime?
-  createdAt     DateTime     @default(now())
-  updatedAt     DateTime     @updatedAt
+  id           String       @id @default(cuid())
+  incidentId   String       @unique
+  incident     Incident     @relation(fields: [incidentId], references: [id])
+  status       AppealStatus @default(DRAFT)
+  preparedText String
+  submittedAt  DateTime?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
 }
 
 model AuditLog {

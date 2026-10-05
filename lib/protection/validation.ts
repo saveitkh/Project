@@ -50,6 +50,27 @@ export const incidentSchema = z.object({
   tiktokAccountId: z.string().optional(),
 });
 
+export const startLiveSessionSchema = z.object({
+  tiktokUsername: z.string().min(1, "TikTok username/account identifier is required."),
+  mode: z.enum(["SIMULATED", "OFFICIAL_API"]),
+  preLiveAuditId: z.string().optional(),
+});
+
+export const manualLiveEventSchema = z.object({
+  type: z.enum([
+    "LIVE_STARTED",
+    "LIVE_ENDED",
+    "COMMENT",
+    "LIKE",
+    "GIFT",
+    "FOLLOW",
+    "VIEWER_UPDATE",
+    "SYSTEM_EVENT",
+  ]),
+  username: z.string().optional(),
+  text: z.string().optional(),
+});
+
 export type SignupInput = z.infer<typeof signupSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
 export type PreLiveAuditInput = z.infer<typeof preLiveAuditSchema>;

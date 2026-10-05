@@ -66,6 +66,36 @@ export default function ReportViewPage() {
         </p>
       </div>
 
+      {report.liveEventTimeline && (
+        <div style={section}>
+          <p style={label}>LIVE Evidence Timeline</p>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px", marginTop: "6px" }}>
+            <thead>
+              <tr>
+                <th style={{ textAlign: "left", padding: "4px" }}>Time</th>
+                <th style={{ textAlign: "left", padding: "4px" }}>Type</th>
+                <th style={{ textAlign: "left", padding: "4px" }}>Summary</th>
+                <th style={{ textAlign: "left", padding: "4px" }}>Source</th>
+                <th style={{ textAlign: "left", padding: "4px" }}>Confidence</th>
+              </tr>
+            </thead>
+            <tbody>
+              {report.liveEventTimeline.map((t, i) => (
+                <tr key={i}>
+                  <td style={{ padding: "4px", borderBottom: "1px solid #f4f4f4" }}>
+                    {new Date(t.timestamp).toLocaleTimeString()}
+                  </td>
+                  <td style={{ padding: "4px", borderBottom: "1px solid #f4f4f4" }}>{t.type}</td>
+                  <td style={{ padding: "4px", borderBottom: "1px solid #f4f4f4" }}>{t.summary}</td>
+                  <td style={{ padding: "4px", borderBottom: "1px solid #f4f4f4" }}>{t.source}</td>
+                  <td style={{ padding: "4px", borderBottom: "1px solid #f4f4f4" }}>{t.confidence}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
       <div style={section}>
         <p style={label}>Detected Risks</p>
         {report.detectedRisks.length === 0 ? (
